@@ -1,0 +1,15 @@
+---
+export const prerender = false;
+import Layout from '../layouts/Layout.astro';
+import { getSiteConfig } from '../lib/api';
+
+const siteConfig = await getSiteConfig();
+const blogName = siteConfig?.blog_name || "Maza Blog";
+---
+<Layout title={`About ${blogName}`} description={`About ${blogName}`}>
+  <main class="prose mx-auto max-w-3xl py-12 px-6">
+    <h1>About {blogName}</h1>
+    <p>{blogName}는 전문 분야별 서브도메인으로 운영되는 SEO 최적화 블로그 플랫폼입니다. 각 서브도메인은 독립적인 niche 사이트로서 높은 검색 엔진 가시성을 목표로 합니다.</p>
+    <p>본 사이트는 광고 수익(구글 애드센스, 쿠팡 파트너스 등)과 자체 콘텐츠를 제공하며, 모든 콘텐츠는 AI 초안 + 편집자의 검수를 거칩니다.</p>
+  </main>
+</Layout>

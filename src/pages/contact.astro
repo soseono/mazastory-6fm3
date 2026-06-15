@@ -1,0 +1,17 @@
+---
+export const prerender = false;
+import Layout from '../layouts/Layout.astro';
+import { getSiteConfig } from '../lib/api';
+
+const siteConfig = await getSiteConfig();
+const blogName = siteConfig?.blog_name || "Maza Blog";
+---
+<Layout title={`Contact ${blogName}`} description={`Contact ${blogName}`}>
+  <main class="prose mx-auto max-w-3xl py-12 px-6">
+    <h1>Contact {blogName}</h1>
+    <p>문의 사항이 있으면 아래 이메일로 연락 주세요.</p>
+    <ul>
+      <li>Email: <a href="mailto:contact@mazablog.com">contact@mazablog.com</a></li>
+    </ul>
+  </main>
+</Layout>

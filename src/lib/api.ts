@@ -1,0 +1,106 @@
+import { supabase } from './supabase';
+
+export interface Post {
+  id: string;
+  title: string;
+  slug: string;
+  content: string;
+  html_content: string;
+  thumbnail_url?: string;
+  created_at: string;
+  publish_at: string;
+  status: string;
+  metadata?: any;
+}
+
+export interface SiteConfig {
+  id: string;
+  blog_name: string;
+  domain: string;
+  niche?: string;
+  adsense_pub?: string;
+  adsense_status?: string;
+  metadata?: any;
+}
+
+// 요청 객체(Request)에서 호스트명을 추출하여 도메인을 반환하는 헬퍼 함수
+export function getRequestDomain(request: Request): string {
+  // 1순위: 주입된 PUBLIC_SITE_DOMAIN 환경변수가 있으면 이를 최우선으로 사용합니다 (Vercel, Netlify 1:1 매핑 호환성)
+  if (import.meta.env.PUBLIC_SITE_DOMAIN) {
+    return import.meta.env.PUBLIC_SITE_DOMAIN;
+  }
+
+  // 2순위: 환경변수가 없을 경우 요청 객체에서 hostname을 추출합니다
+  try {
+    const url = new URL(request.url);
+    const hostname = url.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return '';
+    }
+    return hostname;
+  } catch (e) {
+    return '';
+  }
+}
+
+// 특정 도메인에 대한 블로그 설정 가져오기
+export async function getSiteConfig(domain?: string): Promise<SiteConfig | null> {
+  const targetDomain = domain || import.meta.env.PUBLIC_SITE_DOMAIN || '';
+  if (!targetDomain) {
+    console.warn("[Maza Blog] No site domain configured. Using fallback.");
+    return null;
+  }
+  
+  const { data, error } = await supabase
+    .from('sites')
+    .select('*')
+    .eq('domain', targetDomain)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching site config:", error);
+    return null;
+  }
+  
+  return data;
+}
+
+// "승인된" 포스트만 가져오기 (특정 도메인 및 언어 필터링 지원)
+export async function getApprovedPosts(domain?: string, locale?: string): Promise<Post[]> {
+  const targetDomain = domain || import.meta.env.PUBLIC_SITE_DOMAIN || '';
+  const currentLocale = locale || 'ko';
+  
+  let query = supabase
+    .from('posts')
+    .select('*, sites!inner(domain)')
+    .in('status', ['published', 'approved', 'ready_to_publish'])
+    .eq('language', currentLocale)
+    .order('created_at', { ascending: false });
+
+  if (targetDomain) {
+    query = query.eq('sites.domain', targetDomain);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error("Error fetching posts:", error);
+    return [];
+  }
+  
+  return data.map((post: any) => ({
+    id: post.id,
+    title: post.title,
+    content: post.content,
+    html_content: post.html_content,
+    created_at: post.created_at,
+    publish_at: post.created_at,
+    status: post.status,
+    metadata: post.metadata,
+    slug: post.title.toLowerCase().replace(/[^a-z0-9가-힣]+/g, '-').replace(/(^-|-$)+/g, '') + '-' + post.id.split('-')[0],
+  }));
+}
+
+export async function getPostBySlug(slug: string, domain?: string, locale?: string): Promise<Post | null> {
+  const posts = await getApprovedPosts(domain, locale);
+  return posts.find(p => p.slug === slug) || null;
+}

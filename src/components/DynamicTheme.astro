@@ -1,0 +1,29 @@
+---
+import { getSiteConfig } from '../lib/api';
+
+const siteConfig = await getSiteConfig();
+// Default to Indigo-600 (#4f46e5) if no theme color is set
+const hexColor = siteConfig?.metadata?.theme_color || '#4f46e5';
+---
+
+<style is:inline define:vars={{ hex: hexColor }}>
+  :root {
+    /* Override Tailwind v4 indigo scale with the brand color using color-mix for shades */
+    --color-indigo-50: color-mix(in srgb, var(--hex) 5%, white);
+    --color-indigo-100: color-mix(in srgb, var(--hex) 15%, white);
+    --color-indigo-200: color-mix(in srgb, var(--hex) 30%, white);
+    --color-indigo-300: color-mix(in srgb, var(--hex) 45%, white);
+    --color-indigo-400: color-mix(in srgb, var(--hex) 70%, white);
+    --color-indigo-500: color-mix(in srgb, var(--hex) 85%, white);
+    --color-indigo-600: var(--hex);
+    --color-indigo-700: color-mix(in srgb, var(--hex) 85%, black);
+    --color-indigo-800: color-mix(in srgb, var(--hex) 70%, black);
+    --color-indigo-900: color-mix(in srgb, var(--hex) 55%, black);
+    --color-indigo-950: color-mix(in srgb, var(--hex) 40%, black);
+  }
+  
+  /* 다크 모드 프리퍼런스 대응 (System Dark Mode) */
+  @media (prefers-color-scheme: dark) {
+    /* 추가적인 다크모드 대응이 필요하다면 여기에 작성합니다. */
+  }
+</style>

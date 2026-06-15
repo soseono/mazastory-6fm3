@@ -1,0 +1,140 @@
+---
+export const prerender = false;
+import Layout from '../layouts/Layout.astro';
+import AdSlot from '../components/AdSlot.astro';
+import AnalyticsTracker from '../components/AnalyticsTracker.astro';
+import { getPostBySlug, getSiteConfig, getRequestDomain, getApprovedPosts } from '../lib/api';
+import { buildKeywordMap, injectInternalLinks } from '../lib/internalLinks';
+import { splitHtmlForAd } from '../lib/adManager';
+
+// SSR 렌더링: 접속 도메인과 URL 파라미터(slug)로 동적 조회
+const domain = getRequestDomain(Astro.request);
+const { slug } = Astro.params;
+
+if (!slug) {
+  return Astro.redirect('/404');
+}
+
+const post = await getPostBySlug(slug, domain, Astro.locals.lang || 'ko');
+
+if (!post) {
+  return Astro.redirect('/404');
+}
+
+// A/B 테스트 쿠키 로직
+let adVariant = Astro.cookies.get('ad_variant')?.value;
+if (!adVariant) {
+  adVariant = Math.random() < 0.5 ? 'A' : 'B';
+  Astro.cookies.set('ad_variant', adVariant, { path: '/', maxAge: 60 * 60 * 24 * 30 }); // 30 days
+}
+
+const allPosts = await getApprovedPosts(domain, Astro.locals.lang || 'ko');
+const keywordMap = buildKeywordMap(allPosts, post.slug);
+const linkedHtmlContent = injectInternalLinks(post.html_content || post.content, keywordMap);
+
+// A/B 테스트 B군(본문 중간 삽입)
+const [part1, part2] = adVariant === 'B' ? splitHtmlForAd(linkedHtmlContent) : [linkedHtmlContent, ''];
+
+const siteConfig = await getSiteConfig(domain);
+const profileName = siteConfig?.blog_name || "Maza Editor";
+---
+
+<Layout 
+  title={post.title} 
+  description={post.metadata?.description || post.title}
+  image={post.metadata?.thumbnail_url}
+  type="article"
+  authorName={profileName}
+  datePublished={post.created_at}
+>
+  <div class="mx-auto max-w-4xl px-6 pt-12 pb-20 md:pt-20">
+    
+    <!-- 뒤로가기 / 카테고리 -->
+    <a href="/" class="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[var(--color-indigo-600)] mb-10 transition-colors">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-hover:-translate-x-1"><path d="m15 18-6-6 6-6"/></svg>
+      목록으로 돌아가기
+    </a>
+
+    <!-- 포스트 헤더 -->
+    <header class="mb-14 text-center">
+      {post.metadata?.category && (
+        <a href={`/category/${encodeURIComponent(post.metadata.category)}`} class="mb-6 inline-flex cursor-pointer items-center gap-2 rounded-full bg-[var(--color-indigo-50)] px-3 py-1 text-xs font-bold uppercase tracking-widest text-[var(--color-indigo-600)] border border-[var(--color-indigo-100)] transition-colors hover:bg-[var(--color-indigo-100)]">
+          {post.metadata.category}
+        </a>
+      )}
+      <h1 class="mb-6 text-4xl font-black leading-tight tracking-tight text-slate-900 md:text-5xl md:leading-tight lg:text-6xl break-keep">
+        {post.title}
+      </h1>
+      
+      <!-- 작성자 정보 -->
+      <div class="flex items-center justify-center gap-4 text-sm font-medium text-slate-500">
+        <div class="flex items-center gap-2">
+          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--color-indigo-100)] to-slate-100 text-[var(--color-indigo-600)] font-bold shadow-inner">
+            {profileName.charAt(0).toUpperCase()}
+          </div>
+          <span class="text-slate-700 font-semibold">{profileName}</span>
+        </div>
+        <span class="h-1 w-1 rounded-full bg-slate-300"></span>
+        <time datetime={post.created_at}>{new Date(post.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}</time>
+      </div>
+    </header>
+
+    <!-- 썸네일 -->
+    {post.metadata?.thumbnail_url && (
+      <figure class="mb-16 overflow-hidden rounded-3xl border border-slate-100 shadow-2xl">
+        <img 
+          src={post.metadata.thumbnail_url} 
+          alt={post.title}
+          class="w-full object-cover aspect-[21/9]"
+        />
+      </figure>
+    )}
+
+    <!-- 포스트 본문 -->
+    <!-- prose-h1:hidden 으로 본문 안의 중복 제목 숨김 처리 -->
+    <article class="prose prose-lg prose-slate max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-a:text-[var(--color-indigo-600)] hover:prose-a:text-[var(--color-indigo-700)] prose-img:rounded-2xl prose-img:shadow-lg prose-img:mx-auto prose-h1:hidden prose-h2:text-2xl prose-h3:text-xl break-keep">
+      <Fragment set:html={part1} />
+      {adVariant === 'B' && part2 && <AdSlot className="my-12" />}
+      <Fragment set:html={part2} />
+    </article>
+
+    {adVariant === 'A' && <AdSlot className="mt-16" />}
+
+    <!-- AI 콘텐츠 고지 -->
+    <div class="ai-disclosure mt-12 pt-6 border-t border-slate-100 text-sm text-slate-500">
+      이 글은 Maza AI의 도움을 받아 작성되었으며, 편집자가 검토 및 수정하였습니다.
+    </div>
+    
+    <!-- 해시태그 -->
+    {post.metadata?.hashtags && post.metadata.hashtags.length > 0 && (
+      <div class="mt-16 flex flex-wrap gap-2 pt-8 border-t border-slate-100">
+        {post.metadata.hashtags.map((tag: string) => (
+          <a href={`/tag/${encodeURIComponent(tag.replace(/^#/, ''))}`} class="rounded-full bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-600 border border-slate-200 hover:bg-slate-100 hover:text-indigo-600 hover:border-indigo-200 transition-colors cursor-pointer">
+            #{tag.replace(/^#/, '')}
+          </a>
+        ))}
+      </div>
+    )}
+  </div>
+
+  <!-- 프로그레스 바 -->
+  <div class="fixed top-0 left-0 h-1 bg-indigo-600 z-[60] transition-all duration-150" id="reading-progress"></div>
+  <AnalyticsTracker postId={post.id} adVariant={adVariant} />
+</Layout>
+
+<script>
+  // 스크롤 프로그레스 바 업데이트
+  document.addEventListener('DOMContentLoaded', () => {
+    const progressBar = document.getElementById('reading-progress');
+    if (!progressBar) return;
+
+    window.addEventListener('scroll', () => {
+      const scrollY = window.scrollY;
+      const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      if (height <= 0) return;
+      
+      const width = (scrollY / height) * 100;
+      progressBar.style.width = `${width}%`;
+    }, { passive: true });
+  });
+</script>

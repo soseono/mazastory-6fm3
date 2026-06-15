@@ -1,0 +1,30 @@
+---
+import { getSiteConfig } from '../lib/api';
+
+interface Props {
+  format?: 'auto' | 'fluid' | 'rectangle';
+  slotId?: string;
+  className?: string;
+  style?: string;
+}
+
+const { format = 'auto', slotId = 'XXXXXXXXXX', className = '', style = 'display:block' } = Astro.props;
+
+const siteConfig = await getSiteConfig();
+const pubId = siteConfig?.adsense_pub;
+const isApproved = siteConfig?.adsense_status === 'approved';
+---
+
+{isApproved && pubId && (
+  <div class={`ad-slot-wrapper bg-slate-50 border border-slate-100 flex items-center justify-center my-8 mx-auto w-full max-w-full overflow-hidden rounded-xl ${className}`} style="min-height: 250px;">
+    <ins class="adsbygoogle"
+      style={style}
+      data-ad-client={pubId}
+      data-ad-slot={slotId}
+      data-ad-format={format}
+      data-full-width-responsive="true"></ins>
+    <script is:inline>
+      (adsbygoogle = window.adsbygoogle || []).push({});
+    </script>
+  </div>
+)}

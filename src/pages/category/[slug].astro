@@ -1,0 +1,49 @@
+---
+export const prerender = false;
+import Layout from '../../layouts/Layout.astro';
+import PostCard from '../../components/PostCard.astro';
+import { getApprovedPosts, getRequestDomain } from '../../lib/api';
+
+const domain = getRequestDomain(Astro.request);
+const { slug } = Astro.params;
+
+if (!slug) {
+  return Astro.redirect('/404');
+}
+
+const allPosts = await getApprovedPosts(domain, Astro.locals.lang || 'ko');
+// 카테고리 필터링: 대소문자 무시 매칭
+const categoryPosts = allPosts.filter(post => {
+  const category = post.metadata?.category || '';
+  return category.toLowerCase() === slug.toLowerCase();
+});
+---
+
+<Layout title={`${slug} 카테고리`} description={`${slug} 카테고리에 해당하는 글 모음입니다.`}>
+  <div class="mx-auto max-w-5xl px-6 pt-12 pb-20 md:pt-20">
+    
+    <header class="mb-14 text-center">
+      <div class="mb-4 inline-flex items-center gap-2 rounded-full bg-indigo-50 px-4 py-1.5 text-sm font-bold text-indigo-600 border border-indigo-100">
+        Category
+      </div>
+      <h1 class="text-4xl font-black tracking-tight text-slate-900 md:text-5xl">
+        {slug}
+      </h1>
+      <p class="mt-4 text-lg text-slate-500">
+        총 {categoryPosts.length}개의 관련 포스트가 있습니다.
+      </p>
+    </header>
+
+    {categoryPosts.length > 0 ? (
+      <div class="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+        {categoryPosts.map(post => (
+          <PostCard post={post} />
+        ))}
+      </div>
+    ) : (
+      <div class="py-20 text-center">
+        <p class="text-slate-500">해당 카테고리에 작성된 글이 없습니다.</p>
+      </div>
+    )}
+  </div>
+</Layout>

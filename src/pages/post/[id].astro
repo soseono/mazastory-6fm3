@@ -1,0 +1,20 @@
+---
+import { supabase } from '../../lib/supabase';
+
+export const prerender = false;
+
+const { id } = Astro.params;
+
+// Fetch the post's slug and redirect to the canonical slug page
+const { data: post, error } = await supabase
+	.from('posts')
+	.select('slug')
+	.eq('id', id)
+	.single();
+
+if (error || !post) {
+	return Astro.redirect('/404');
+}
+
+return Astro.redirect(`/${post.slug}`);
+---

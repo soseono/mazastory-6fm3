@@ -1,0 +1,54 @@
+---
+import type { Post } from '../lib/api';
+
+interface Props {
+  post: Post;
+}
+
+const { post } = Astro.props;
+const formattedDate = new Date(post.publish_at || post.created_at).toLocaleDateString('ko-KR', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric'
+});
+
+// 실제 이미지 추출: metadata.data.image1 → metadata.blocks 이미지 → 폴백
+const metaImage = post.metadata?.data?.image1 
+  || post.metadata?.blocks?.find((b: any) => b.type === 'image')?.url
+  || null;
+
+// source.unsplash.com 서비스 종료로 인해 고정 폴백 이미지 사용
+const fallbackImage = 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?q=80&w=800&auto=format&fit=crop';
+const coverImage = metaImage || fallbackImage;
+---
+
+<a href={`/${post.slug}`} class="group flex flex-col overflow-hidden rounded-2xl bg-white border border-slate-100 shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-50 hover:border-indigo-100">
+  <div class="relative aspect-[16/9] w-full overflow-hidden bg-slate-100">
+    <img 
+      src={coverImage} 
+      alt={post.title}
+      class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+      loading="lazy"
+    />
+    <div class="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 transition-opacity group-hover:opacity-100"></div>
+  </div>
+  
+  <div class="flex flex-1 flex-col p-6">
+    <div class="mb-3 flex items-center gap-2">
+      <span class="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-bold text-indigo-600">
+        Article
+      </span>
+      <span class="text-xs font-medium text-slate-400">
+        {formattedDate}
+      </span>
+    </div>
+    
+    <h3 class="mb-2 text-xl font-bold leading-tight text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-2">
+      {post.title}
+    </h3>
+    
+    <p class="text-sm text-slate-500 line-clamp-3">
+      {post.content.substring(0, 150)}...
+    </p>
+  </div>
+</a>

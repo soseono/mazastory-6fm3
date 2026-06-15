@@ -1,0 +1,21 @@
+---
+export const prerender = false;
+import Layout from '../layouts/Layout.astro';
+import { getSiteConfig } from '../lib/api';
+
+const siteConfig = await getSiteConfig();
+const blogName = siteConfig?.blog_name || "Maza Blog";
+---
+<Layout title="Privacy Policy" description={`${blogName} Privacy Policy`}>
+  <main class="prose mx-auto max-w-3xl py-12 px-6">
+    <h1>Privacy Policy</h1>
+    <p>{blogName}는 방문자와 사용자 데이터를 최소한으로 수집하고, 수집된 데이터는 광고 및 서비스 개선 목적으로만 사용됩니다.</p>
+    <p>수집되는 정보:</p>
+    <ul>
+      <li>IP 주소 (분석용)</li>
+      <li>쿠키 (광고 및 사용자 맞춤화)</li>
+      <li>Google Analytics 및 AdSense 제공 데이터</li>
+    </ul>
+    <p>데이터는 제3자와 공유되지 않으며, 필요 시 사용자 동의를 받습니다.</p>
+  </main>
+</Layout>

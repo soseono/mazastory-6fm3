@@ -1,0 +1,76 @@
+---
+interface Props {
+  postId: string;
+  adVariant?: string;
+}
+
+const { postId, adVariant } = Astro.props;
+---
+
+<script define:vars={{ postId, adVariant }}>
+  // Wait for DOM to be ready
+  document.addEventListener('DOMContentLoaded', () => {
+    let startTime = Date.now();
+    let maxScrollDepth = 0;
+    let analyticsSent = false;
+    
+    // Update maximum scroll depth
+    const updateScrollDepth = () => {
+      const scrollY = window.scrollY;
+      const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      if (height <= 0) {
+        maxScrollDepth = 100; // Content fits in one screen
+        return;
+      }
+      
+      const depth = Math.round((scrollY / height) * 100);
+      if (depth > maxScrollDepth) {
+        maxScrollDepth = depth;
+      }
+    };
+
+    // Throttle scroll listener to avoid performance issues
+    let ticking = false;
+    window.addEventListener('scroll', () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          updateScrollDepth();
+          ticking = false;
+        });
+        ticking = true;
+      }
+    }, { passive: true });
+
+    // Send data when user leaves or hides the page
+    const sendAnalytics = () => {
+      if (analyticsSent) return;
+      
+      // Update one last time in case scroll event was missed
+      updateScrollDepth();
+      
+      const timeSpentMs = Date.now() - startTime;
+      
+      const payload = {
+        postId,
+        scrollDepth: maxScrollDepth,
+        timeSpentMs,
+        adVariant
+      };
+
+      // Use sendBeacon for reliable delivery on page exit
+      const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+      navigator.sendBeacon('/api/analytics', blob);
+      
+      analyticsSent = true;
+    };
+
+    window.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        sendAnalytics();
+      }
+    });
+
+    // Fallback for some mobile browsers
+    window.addEventListener('pagehide', sendAnalytics);
+  });
+</script>
