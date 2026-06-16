@@ -4,10 +4,7 @@ import { getSiteConfig } from '../lib/api';
 
 const siteConfig = await getSiteConfig();
 const blogName = siteConfig?.blog_name || "Maza Blog";
-const pathname = Astro.url.pathname;
-let currentLang = 'ko';
-if (pathname.startsWith('/en')) currentLang = 'en';
-else if (pathname.startsWith('/ja')) currentLang = 'ja';
+const currentLang = Astro.locals.lang || 'ko';
 ---
 
 <header class="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/80 backdrop-blur-md transition-all">
