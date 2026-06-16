@@ -14,11 +14,11 @@ const featuredPost = posts.length > 0 ? posts[0] : null;
 const recentPosts = posts.slice(1);
 
 // Featured Post 대표 이미지 추출
-let featuredImage = 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=1200&auto=format&fit=crop';
+let featuredImage = featuredPost ? `https://picsum.photos/seed/${featuredPost.id}/1200/600` : 'https://picsum.photos/seed/featured/1200/600';
 if (featuredPost) {
   const metaImg = featuredPost.metadata?.data?.image1 
     || featuredPost.metadata?.blocks?.find((b: any) => b.type === 'image')?.url;
-  featuredImage = metaImg || 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?q=80&w=1200&auto=format&fit=crop';
+  if (metaImg) featuredImage = metaImg;
 }
 ---
 
