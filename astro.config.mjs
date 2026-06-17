@@ -19,8 +19,7 @@ export default defineConfig({
     locales: ["ko", "en", "ja"],
     routing: {
       prefixDefaultLocale: false,
-      fallbackType: "rewrite",
-      strategy: "manual"
+      fallbackType: "rewrite"
     }
   },
   integrations: [],
