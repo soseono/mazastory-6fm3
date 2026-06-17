@@ -17,10 +17,7 @@ export default defineConfig({
   i18n: {
     defaultLocale: "ko",
     locales: ["ko", "en", "ja"],
-    routing: {
-      prefixDefaultLocale: false,
-      fallbackType: "rewrite"
-    }
+    routing: "manual"
   },
   integrations: [],
   vite: {
