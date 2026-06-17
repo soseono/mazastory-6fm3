@@ -103,7 +103,7 @@ export async function getApprovedPosts(domain?: string, locale?: string): Promis
       metadata: post.metadata,
       slug: post.title.toLowerCase().replace(/[^a-z0-9가-힣]+/g, '-').replace(/(^-|-$)+/g, '') + '-' + post.id.split('-')[0],
     }))
-    .sort((a, b) => new Date(b.publish_at).getTime() - new Date(a.publish_at).getTime());
+    .sort((a: Post, b: Post) => new Date(b.publish_at).getTime() - new Date(a.publish_at).getTime());
 }
 
 export async function getPostBySlug(slug: string, domain?: string, locale?: string): Promise<Post | null> {
