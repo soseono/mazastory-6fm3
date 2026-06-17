@@ -89,6 +89,13 @@ export async function getApprovedPosts(domain?: string, locale?: string): Promis
     .filter((post: any) => {
       // Exclude posts with active generation statuses
       if (post.status && ['QUEUED', 'STARTING', 'TAB_OPENING', 'SCHEDULED', 'ON_HOLD'].includes(post.status.toUpperCase())) return false;
+      
+      // Exclude legal/compliance pages from the main feed
+      const isCompliance = post.source_type === 'compliance' || 
+                           post.metadata?.is_compliance === true ||
+                           /개인정보처리방침|이용약관|책임 한계|블로그 소개|문의하기/.test(post.title);
+      if (isCompliance) return false;
+
       const publishTime = new Date(post.publish_at || post.created_at).getTime();
       return publishTime <= now;
     })
