@@ -38,12 +38,18 @@ const [part1, part2] = splitHtmlForAd(linkedHtmlContent);
 
 const profileName = siteConfig?.blog_name || "Maza Editor";
 const dateStr = new Date(post.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+
+// 실제 이미지 추출 (PostCard와 동일한 로직 적용)
+const metaImage = post.metadata?.data?.image1 
+  || post.metadata?.blocks?.find((b: any) => b.type === 'image')?.url
+  || post.metadata?.thumbnail_url
+  || null;
 ---
 
 <Layout 
   title={post.title} 
   description={post.metadata?.description || post.title}
-  image={post.metadata?.thumbnail_url}
+  image={metaImage}
   type="article"
   authorName={profileName}
   datePublished={post.created_at}
@@ -82,10 +88,10 @@ const dateStr = new Date(post.created_at).toLocaleDateString('ko-KR', { year: 'n
     </header>
 
     <!-- 썸네일: 모바일에서 aspect-[16/9], PC에서 aspect-[21/9] -->
-    {post.metadata?.thumbnail_url && (
+    {metaImage && (
       <figure class="mb-8 md:mb-14 overflow-hidden rounded-2xl md:rounded-3xl border border-slate-100 shadow-lg md:shadow-2xl">
         <img 
-          src={post.metadata.thumbnail_url} 
+          src={metaImage} 
           alt={post.title}
           class="w-full object-cover aspect-[16/9] md:aspect-[21/9]"
           loading="eager"
