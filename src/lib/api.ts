@@ -68,7 +68,15 @@ export async function getApprovedPosts(domain?: string, locale?: string): Promis
   const targetDomain = domain || import.meta.env.PUBLIC_SITE_DOMAIN || '';
   const currentLocale = locale || 'ko';
   
-  const { data, error } = await supabase.rpc('get_public_posts', { target_domain: targetDomain, target_lang: currentLocale });
+  let data, error;
+  try {
+    const result = await supabase.rpc('get_public_posts', { target_domain: targetDomain, target_lang: currentLocale });
+    data = result.data;
+    error = result.error;
+  } catch (e) {
+    console.error("getApprovedPosts RPC failed:", e);
+    return [];
+  }
 
   if (error) {
     console.error("Error fetching posts:", error);
