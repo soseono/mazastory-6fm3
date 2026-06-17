@@ -3,14 +3,14 @@ export const prerender = false;
 import Layout from '../layouts/Layout.astro';
 import AdSlot from '../components/AdSlot.astro';
 import AnalyticsTracker from '../components/AnalyticsTracker.astro';
-import { getPostBySlug, getSiteConfig, getRequestDomain, getApprovedPosts } from '../lib/api';
+import { getSiteConfig, getRequestDomain, getApprovedPosts } from '../lib/api';
 import { buildKeywordMap, injectInternalLinks } from '../lib/internalLinks';
 import { splitHtmlForAd } from '../lib/adManager';
 
-// 캐시 설정으로 로딩 속도 대폭 개선
-Astro.response.headers.set('Cache-Control', 'public, max-age=60, s-maxage=300');
+// CDN 캐싱 활성화: 쿠키 의존성 제거로 Cloudflare/Netlify 캐싱이 작동함
+// - 개인 정보(쿠키 등) 없음 → CDN이 페이지를 저장해 전 세계 방문자에게 즉시 제공
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
 
-// SSR 렌더링: 접속 도메인과 URL 파라미터(slug)로 동적 조회
 const domain = getRequestDomain(Astro.request);
 const { slug } = Astro.params;
 
@@ -18,7 +18,7 @@ if (!slug) {
   return Astro.redirect('/404');
 }
 
-// 성능 최적화: API 중복 호출 제거 및 병렬 처리
+// 성능 최적화: 병렬 처리
 const [siteConfig, allPosts] = await Promise.all([
   getSiteConfig(domain),
   getApprovedPosts(domain, Astro.locals.lang || 'ko')
@@ -30,20 +30,14 @@ if (!post) {
   return Astro.redirect('/404');
 }
 
-// A/B 테스트 쿠키 로직
-let adVariant = Astro.cookies.get('ad_variant')?.value;
-if (!adVariant) {
-  adVariant = Math.random() < 0.5 ? 'A' : 'B';
-  Astro.cookies.set('ad_variant', adVariant, { path: '/', maxAge: 60 * 60 * 24 * 30 }); // 30 days
-}
-
+// A/B 테스트: 서버 쿠키 대신 클라이언트(localStorage) 기반으로 전환
+// → 서버는 항상 두 광고 슬롯을 모두 렌더링하고, 클라이언트 JS가 하나를 숨김
 const keywordMap = buildKeywordMap(allPosts, post.slug);
 const linkedHtmlContent = injectInternalLinks(post.html_content || post.content, keywordMap);
-
-// A/B 테스트 B군(본문 중간 삽입)
-const [part1, part2] = adVariant === 'B' ? splitHtmlForAd(linkedHtmlContent) : [linkedHtmlContent, ''];
+const [part1, part2] = splitHtmlForAd(linkedHtmlContent);
 
 const profileName = siteConfig?.blog_name || "Maza Editor";
+const dateStr = new Date(post.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
 ---
 
 <Layout 
@@ -54,65 +48,82 @@ const profileName = siteConfig?.blog_name || "Maza Editor";
   authorName={profileName}
   datePublished={post.created_at}
 >
-  <div class="mx-auto max-w-4xl px-4 pt-8 pb-16 md:px-6 md:pt-20 md:pb-20">
+  <div class="mx-auto max-w-3xl px-4 pt-6 pb-12 md:px-6 md:pt-16 md:pb-20">
     
-    <!-- 뒤로가기 / 카테고리 -->
-    <a href="/" class="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[var(--color-indigo-600)] mb-8 md:mb-10 transition-colors">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-hover:-translate-x-1"><path d="m15 18-6-6 6-6"/></svg>
-      목록으로 돌아가기
+    <!-- 뒤로가기 -->
+    <a href="/" class="inline-flex items-center gap-1.5 text-sm font-medium text-slate-400 hover:text-[var(--color-indigo-600)] mb-6 md:mb-10 transition-colors">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      목록으로
     </a>
 
     <!-- 포스트 헤더 -->
-    <header class="mb-10 md:mb-14 text-center">
+    <header class="mb-8 md:mb-12">
       {post.metadata?.category && (
-        <a href={`/category/${encodeURIComponent(post.metadata.category)}`} class="mb-4 md:mb-6 inline-flex cursor-pointer items-center gap-2 rounded-full bg-[var(--color-indigo-50)] px-3 py-1 text-xs font-bold uppercase tracking-widest text-[var(--color-indigo-600)] border border-[var(--color-indigo-100)] transition-colors hover:bg-[var(--color-indigo-100)]">
+        <a href={`/category/${encodeURIComponent(post.metadata.category)}`} class="mb-3 md:mb-4 inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-[var(--color-indigo-50)] px-3 py-1 text-xs font-bold uppercase tracking-widest text-[var(--color-indigo-600)] border border-[var(--color-indigo-100)] transition-colors hover:bg-[var(--color-indigo-100)]">
           {post.metadata.category}
         </a>
       )}
-      <h1 class="mb-6 text-3xl font-black leading-[1.2] tracking-tight text-slate-900 md:text-5xl md:leading-tight lg:text-6xl break-keep">
+      <!-- 모바일: text-2xl, 태블릿: text-4xl, PC: text-5xl -->
+      <h1 class="mb-5 text-2xl font-black leading-tight tracking-tight text-slate-900 md:text-4xl lg:text-5xl break-keep">
         {post.title}
       </h1>
       
       <!-- 작성자 정보 -->
-      <div class="flex items-center justify-center gap-4 text-sm font-medium text-slate-500">
+      <div class="flex items-center gap-3 text-sm text-slate-500">
         <div class="flex items-center gap-2">
-          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--color-indigo-100)] to-slate-100 text-[var(--color-indigo-600)] font-bold shadow-inner">
+          <div class="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[var(--color-indigo-100)] to-slate-100 text-[var(--color-indigo-600)] font-bold text-xs shadow-inner">
             {profileName.charAt(0).toUpperCase()}
           </div>
-          <span class="text-slate-700 font-semibold">{profileName}</span>
+          <span class="font-semibold text-slate-700">{profileName}</span>
         </div>
         <span class="h-1 w-1 rounded-full bg-slate-300"></span>
-        <time datetime={post.created_at}>{new Date(post.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}</time>
+        <time datetime={post.created_at}>{dateStr}</time>
       </div>
     </header>
 
-    <!-- 썸네일 -->
+    <!-- 썸네일: 모바일에서 aspect-[16/9], PC에서 aspect-[21/9] -->
     {post.metadata?.thumbnail_url && (
-      <figure class="mb-16 overflow-hidden rounded-3xl border border-slate-100 shadow-2xl">
+      <figure class="mb-8 md:mb-14 overflow-hidden rounded-2xl md:rounded-3xl border border-slate-100 shadow-lg md:shadow-2xl">
         <img 
           src={post.metadata.thumbnail_url} 
           alt={post.title}
-          class="w-full object-cover aspect-[21/9]"
+          class="w-full object-cover aspect-[16/9] md:aspect-[21/9]"
+          loading="eager"
+          fetchpriority="high"
         />
       </figure>
     )}
 
-    <!-- 포스트 본문 -->
-    <!-- prose-h1:hidden 으로 본문 안의 중복 제목 숨김 처리 -->
-    <article class="prose prose-lg prose-slate max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-a:text-[var(--color-indigo-600)] hover:prose-a:text-[var(--color-indigo-700)] prose-img:rounded-2xl prose-img:shadow-lg prose-img:mx-auto prose-h1:hidden prose-h2:text-2xl prose-h3:text-xl break-keep">
+    <!-- 포스트 본문: 모바일은 prose(base), PC는 prose-lg -->
+    <!-- prose-h1:hidden 으로 본문 안의 중복 h1 숨김 -->
+    <article class="prose prose-slate max-w-none md:prose-lg
+      prose-headings:font-bold prose-headings:tracking-tight prose-headings:break-keep
+      prose-h1:hidden prose-h2:text-xl prose-h2:md:text-2xl prose-h3:text-lg prose-h3:md:text-xl
+      prose-p:leading-relaxed prose-p:break-keep
+      prose-a:text-[var(--color-indigo-600)] hover:prose-a:text-[var(--color-indigo-700)]
+      prose-img:rounded-xl prose-img:md:rounded-2xl prose-img:shadow-md prose-img:mx-auto
+      prose-li:break-keep">
       <Fragment set:html={part1} />
-      {adVariant === 'B' && part2 && <AdSlot className="my-12" />}
-      <Fragment set:html={part2} />
+
+      <!-- 광고 B: 본문 중간 삽입 (클라이언트 JS가 A/B 배정 후 숨김 처리) -->
+      {part2 && (
+        <div id="ad-slot-mid" class="my-8 md:my-12">
+          <AdSlot className="" />
+        </div>
+      )}
+      {part2 && <Fragment set:html={part2} />}
     </article>
 
-    {adVariant === 'A' && <AdSlot className="mt-16" />}
-
+    <!-- 광고 A: 본문 하단 (클라이언트 JS가 A/B 배정 후 숨김 처리) -->
+    <div id="ad-slot-bottom" class="mt-10 md:mt-16">
+      <AdSlot className="" />
+    </div>
 
     <!-- 해시태그 -->
     {post.metadata?.hashtags && post.metadata.hashtags.length > 0 && (
-      <div class="mt-16 flex flex-wrap gap-2 pt-8 border-t border-slate-100">
+      <div class="mt-10 md:mt-16 flex flex-wrap gap-2 pt-6 border-t border-slate-100">
         {post.metadata.hashtags.map((tag: string) => (
-          <a href={`/tag/${encodeURIComponent(tag.replace(/^#/, ''))}`} class="rounded-full bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-600 border border-slate-200 hover:bg-slate-100 hover:text-indigo-600 hover:border-indigo-200 transition-colors cursor-pointer">
+          <a href={`/tag/${encodeURIComponent(tag.replace(/^#/, ''))}`} class="rounded-full bg-slate-50 px-3 py-1.5 text-xs md:text-sm font-semibold text-slate-600 border border-slate-200 hover:bg-slate-100 hover:text-indigo-600 hover:border-indigo-200 transition-colors cursor-pointer">
             #{tag.replace(/^#/, '')}
           </a>
         ))}
@@ -120,24 +131,54 @@ const profileName = siteConfig?.blog_name || "Maza Editor";
     )}
   </div>
 
-  <!-- 프로그레스 바 -->
-  <div class="fixed top-0 left-0 h-1 bg-indigo-600 z-[60] transition-all duration-150" id="reading-progress"></div>
-  <AnalyticsTracker postId={post.id} adVariant={adVariant} />
+  <!-- 리딩 프로그레스 바 -->
+  <div class="fixed top-0 left-0 h-0.5 md:h-1 bg-[var(--color-indigo-600)] z-[60] transition-all duration-100" id="reading-progress"></div>
+  <AnalyticsTracker postId={post.id} adVariant="client" />
 </Layout>
 
 <script>
-  // 스크롤 프로그레스 바 업데이트
-  document.addEventListener('DOMContentLoaded', () => {
-    const progressBar = document.getElementById('reading-progress');
-    if (!progressBar) return;
+  // ─── A/B 광고 배정 (localStorage 기반 - CDN 캐싱 친화적) ────────────────────
+  function getAdVariant(): string {
+    try {
+      let variant = localStorage.getItem('ad_variant');
+      if (!variant) {
+        variant = Math.random() < 0.5 ? 'A' : 'B';
+        localStorage.setItem('ad_variant', variant);
+      }
+      return variant;
+    } catch {
+      return 'A';
+    }
+  }
 
+  const variant = getAdVariant();
+
+  // B군: 중간 광고 노출, 하단 광고 숨김
+  // A군: 하단 광고 노출, 중간 광고 숨김
+  if (variant === 'A') {
+    const midAd = document.getElementById('ad-slot-mid');
+    if (midAd) midAd.style.display = 'none';
+  } else {
+    const bottomAd = document.getElementById('ad-slot-bottom');
+    if (bottomAd) bottomAd.style.display = 'none';
+  }
+
+  // ─── 스크롤 프로그레스 바 ────────────────────────────────────────────────────
+  const progressBar = document.getElementById('reading-progress');
+  if (progressBar) {
+    let ticking = false;
     window.addEventListener('scroll', () => {
-      const scrollY = window.scrollY;
-      const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-      if (height <= 0) return;
-      
-      const width = (scrollY / height) * 100;
-      progressBar.style.width = `${width}%`;
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const scrollY = window.scrollY;
+          const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+          if (height > 0) {
+            progressBar.style.width = `${(scrollY / height) * 100}%`;
+          }
+          ticking = false;
+        });
+        ticking = true;
+      }
     }, { passive: true });
-  });
+  }
 </script>
