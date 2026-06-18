@@ -99,17 +99,28 @@ export async function getApprovedPosts(domain?: string, locale?: string): Promis
       const publishTime = new Date(post.publish_at || post.created_at).getTime();
       return publishTime <= now;
     })
-    .map((post: any) => ({
-      id: post.id,
-      title: post.title,
-      content: post.content,
-      html_content: post.html_content,
-      created_at: post.created_at,
-      publish_at: post.publish_at || post.created_at,
-      status: post.status,
-      metadata: post.metadata,
-      slug: post.title.toLowerCase().replace(/[^a-z0-9가-힣]+/g, '-').replace(/(^-|-$)+/g, '') + '-' + post.id.split('-')[0],
-    }))
+    .map((post: any) => {
+      let thumbnail_url = post.thumbnail_url;
+      if (!thumbnail_url && post.html_content) {
+        const match = post.html_content.match(/<img[^>]+src="([^">]+)"/i);
+        if (match) {
+          thumbnail_url = match[1];
+        }
+      }
+      
+      return {
+        id: post.id,
+        title: post.title,
+        slug: post.title.toLowerCase().replace(/[^a-z0-9가-힣]+/g, '-').replace(/(^-|-$)+/g, '') + '-' + post.id.split('-')[0],
+        content: post.content,
+        html_content: post.html_content,
+        created_at: post.created_at,
+        publish_at: post.publish_at || post.created_at,
+        status: post.status,
+        metadata: post.metadata,
+        thumbnail_url
+      };
+    })
     .sort((a: Post, b: Post) => new Date(b.publish_at).getTime() - new Date(a.publish_at).getTime());
 }
 

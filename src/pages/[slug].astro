@@ -47,6 +47,7 @@ const dateStr = new Date(post.created_at).toLocaleDateString('ko-KR', { year: 'n
 const metaImage = post.metadata?.data?.image1 
   || post.metadata?.blocks?.find((b: any) => b.type === 'image')?.url
   || post.metadata?.thumbnail_url
+  || post.thumbnail_url
   || null;
 ---
 
