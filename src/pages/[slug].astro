@@ -24,9 +24,13 @@ const [siteConfig, allPosts] = await Promise.all([
   getApprovedPosts(domain, Astro.locals.lang || 'ko')
 ]);
 
-const post = allPosts.find((p: any) => p.slug === slug);
+const post = allPosts.find((p: any) => p.slug === slug || p.id === slug);
 
 if (!post) {
+  console.log('404 for slug:', slug, 'allPosts length:', allPosts.length);
+  if (allPosts.length > 0) {
+    console.log('First post ID:', allPosts[0].id);
+  }
   return Astro.redirect('/404');
 }
 

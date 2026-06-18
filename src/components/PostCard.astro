@@ -29,7 +29,7 @@ const plainText = post.content || (post.html_content ? post.html_content.replace
 const excerpt = plainText.length > 150 ? plainText.substring(0, 150) + '...' : plainText;
 ---
 
-<a href={`/${post.slug}`} class="group flex flex-col overflow-hidden rounded-2xl bg-white border border-slate-100 shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-50 hover:border-indigo-100">
+<a href={`/${post.slug || post.id}`} class="group flex flex-col overflow-hidden rounded-2xl bg-white border border-slate-100 shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-50 hover:border-indigo-100">
   <div class="relative aspect-[16/9] w-full overflow-hidden bg-slate-100">
     {coverImage ? (
       <img 
