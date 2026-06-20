@@ -21,3 +21,9 @@
 - Test switching `astro.config.mjs` `output: 'static'` locally and run a full build to measure build time and resulting site size.
 - If SSG is not feasible, use CDN caching and set `Cache-Control` headers globally (already applied in layout).
 
+## Database Payload Optimization (Crucial)
+- **Problem**: Fetching the full `html_content` (which can contain base64 images or massive text) for *all posts* via RPC (`get_public_posts`) resulted in 5MB+ JSON payloads, causing 8-10 second TTFB during SSR cold starts.
+- **Solution**: 
+  1. **List/Feed views (e.g., Home)**: ONLY fetch lightweight fields (`id, title, slug, thumbnail_url, date`). Exclude `content` and `html_content`.
+  2. **Detail views (e.g., `[slug].astro`)**: Use a targeted query to fetch the heavy `html_content` ONLY for the single requested post ID.
+- **Rule of Thumb**: Never `SELECT *` or return heavy HTML strings in list-fetching RPCs. Always paginate or explicitly select minimal fields for index pages.
