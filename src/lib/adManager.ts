@@ -3,6 +3,12 @@
  * A/B 테스트 시 본문 중간에 광고를 주입하기 위해 사용됩니다.
  */
 export function splitHtmlForAd(html: string): [string, string] {
+  if (!html) return ['', ''];
+  // Do NOT split if it contains a root div with box-sizing (Zero-IT or RendererAgent templates)
+  if (html.includes('max-width:740px') || html.includes('template-wrapper')) {
+    return [html, ''];
+  }
+
   // 간단한 구현: 본문의 중간쯤에 있는 </p> 태그를 기준으로 나눔
   const pTags = html.match(/<\/p>/g);
   if (!pTags || pTags.length < 4) {

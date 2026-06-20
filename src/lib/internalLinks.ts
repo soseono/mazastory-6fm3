@@ -43,6 +43,7 @@ export function buildKeywordMap(posts: Post[], currentSlug: string): KeywordLink
  * 너무 많은 링크가 걸리지 않도록, 한 포스트당 동일한 키워드는 한 번만 링크를 겁니다.
  */
 export function injectInternalLinks(html: string, keywordMap: KeywordLink[]): string {
+  if (!html) return html || '';
   if (!keywordMap || keywordMap.length === 0) return html;
 
   let inAnchor = false;
