@@ -15,13 +15,14 @@ interface Props {
 	authorName?: string;
 	datePublished?: string;
   preloadImage?: string;
+  siteConfig?: any;
 }
 
 // Prefer an explicit domain from environment when prerendering. Only call
 // the Supabase RPC when a domain is available to avoid network calls during
 // static prerender.
 const envDomain = import.meta.env.PUBLIC_SITE_DOMAIN || import.meta.env.SITE_DOMAIN || import.meta.env.URL || '';
-const siteConfig = envDomain ? await getSiteConfig(envDomain) : null;
+const siteConfig = Astro.props.siteConfig || (envDomain ? await getSiteConfig(envDomain) : null);
 // Set CDN-friendly cache control for pages rendered with this layout
 Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
 const siteTitle = siteConfig?.blog_name || "Maza Blog";
@@ -70,9 +71,7 @@ const canonicalUrl = Astro.url.href;
 			image={image}
 			authorName={authorName}
 			datePublished={datePublished}
-		/>
-
-		<DynamicTheme />
+		<DynamicTheme siteConfig={siteConfig} />
 
 		{siteConfig?.adsense_pub && siteConfig?.adsense_status === 'approved' && (
 			<script async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${siteConfig.adsense_pub}`} crossorigin="anonymous"></script>

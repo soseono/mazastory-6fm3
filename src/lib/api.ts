@@ -116,19 +116,107 @@ export async function getApprovedPosts(domain?: string, locale?: string): Promis
     .sort((a: Post, b: Post) => new Date(b.publish_at).getTime() - new Date(a.publish_at).getTime());
 }
 
-// 최적화: slug로 ID를 찾은 후, 해당 포스트 1개만의 html_content를 추가로 가져옵니다.
-export async function getPostBySlug(slug: string, domain?: string, locale?: string): Promise<Post | null> {
-  const posts = await getApprovedPosts(domain, locale);
-  const basePost = posts.find(p => p.slug === slug || p.id === slug);
-  
-  if (!basePost) return null;
+// 슬러그를 즉석에서 계산합니다 (DB에 slug 컬럼이 없으므로 title + id 접두사로 파생).
+function computeSlug(post: { title: string; id: string }): string {
+  return post.title.toLowerCase().replace(/[^a-z0-9가-힣]+/g, '-').replace(/(^-|-$)+/g, '') + '-' + post.id.split('-')[0];
+}
 
-  // html_content와 content만 따로 가져옴
-  const { data, error } = await supabase.from('posts').select('html_content, content').eq('id', basePost.id).single();
-  if (!error && data) {
-    basePost.html_content = data.html_content;
-    basePost.content = data.content;
+function isCompliancePost(post: { title: string; source_type?: string; metadata?: any }): boolean {
+  return post.source_type === 'compliance' ||
+    post.metadata?.is_compliance === true ||
+    /개인정보처리방침|이용약관|책임 한계|블로그 소개|문의하기/.test(post.title);
+}
+
+// [slug].astro에서 이미 호출한 getApprovedPosts() 결과(또는 동일 필터의 candidates 목록)를
+// 그대로 받아 slug를 매칭합니다. 별도 DB 쿼리를 하지 않는 순수 함수입니다.
+export function findPostMetaInList(posts: Post[], slug: string): Post | null {
+  const match = posts.find(p => p.slug === slug || p.id === slug);
+  if (!match) return null;
+  if (isCompliancePost(match as any)) return null;
+  return match;
+}
+
+// 61번째 이후의 과거 글처럼 최근 60건 목록에 없는 경우를 위한 안전망(fallback) 쿼리.
+// slug 맨 끝의 id 접두사를 단서로 UUID 범위를 계산하여 인덱스를 타고 빠르게 조회합니다.
+export async function findPostMetaByIdHintFallback(slug: string, siteId: string): Promise<Post | null> {
+  const idHint = slug.includes('-') ? slug.substring(slug.lastIndexOf('-') + 1) : slug;
+  if (!idHint || idHint.length < 4) return null; // 너무 짧은 토큰은 신뢰하지 않음
+
+  // UUID range for lexicographical comparison
+  const prefix = idHint.padEnd(8, '0').substring(0, 8);
+  const minUuid = `${prefix}-0000-0000-0000-000000000000`;
+  const prefixMax = idHint.padEnd(8, 'f').substring(0, 8);
+  const maxUuid = `${prefixMax}-ffff-ffff-ffff-ffffffffffff`;
+
+  try {
+    const { data, error } = await supabase.from('posts')
+      .select('id, title, thumbnail_url, created_at, publish_at, status, metadata, source_type')
+      .eq('site_id', siteId)
+      .eq('status', 'published')
+      .gte('id', minUuid)
+      .lte('id', maxUuid)
+      .limit(5);
+
+    if (error || !data || data.length === 0) return null;
+
+    const candidate = data.find((post: any) => computeSlug(post) === slug) || (data.length === 1 ? data[0] : null);
+    if (!candidate) return null;
+    if (isCompliancePost(candidate)) return null;
+
+    let thumbnail_url = candidate.thumbnail_url;
+    if (!thumbnail_url && candidate.metadata?.data?.image1) {
+      thumbnail_url = candidate.metadata.data.image1;
+    }
+
+    return {
+      id: candidate.id,
+      title: candidate.title,
+      slug,
+      content: '',
+      html_content: '',
+      created_at: candidate.created_at,
+      publish_at: candidate.publish_at || candidate.created_at,
+      status: candidate.status,
+      metadata: candidate.metadata,
+      thumbnail_url,
+    };
+  } catch (e) {
+    return null;
   }
+}
 
-  return basePost;
+// 글 본문(html_content, content)만 PK 정확 매칭으로 가져옵니다. 인덱스를 타므로 매우 빠릅니다.
+export async function getPostContent(id: string): Promise<{ content: string; html_content: string } | null> {
+  try {
+    const { data, error } = await supabase.from('posts').select('html_content, content').eq('id', id).single();
+    if (error || !data) return null;
+    return { content: data.content || '', html_content: data.html_content || '' };
+  } catch (e) {
+    return null;
+  }
+}
+
+// 하위 호환용 단일 진입점: 내부적으로 site 조회 → 목록 조회 → 매칭 → fallback → 본문 조회를 한 번에 수행합니다.
+export async function getPostBySlug(slug: string, domain?: string, locale?: string): Promise<Post | null> {
+  const targetDomain = domain || import.meta.env.PUBLIC_SITE_DOMAIN || '';
+
+  try {
+    const { data: site } = await supabase.from('sites').select('id').eq('domain', targetDomain).limit(1).maybeSingle();
+    if (!site) return null;
+
+    const posts = await getApprovedPosts(targetDomain, locale);
+    let meta = findPostMetaInList(posts, slug);
+
+    if (!meta) {
+      meta = await findPostMetaByIdHintFallback(slug, site.id);
+      if (!meta) return null;
+    }
+
+    const full = await getPostContent(meta.id);
+    if (!full) return null;
+
+    return { ...meta, content: full.content, html_content: full.html_content };
+  } catch (e) {
+    return null;
+  }
 }

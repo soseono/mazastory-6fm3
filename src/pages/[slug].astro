@@ -18,14 +18,24 @@ if (!slug) {
   return Astro.redirect('/404');
 }
 
-// 성능 최적화: 병렬 처리 (리스트 + 단일 포스트 본문)
-const [siteConfig, allPosts, fullPost] = await Promise.all([
+const [siteConfig, allPosts] = await Promise.all([
   getSiteConfig(domain),
-  getApprovedPosts(domain, Astro.locals.lang || 'ko'),
-  getPostBySlug(slug, domain, Astro.locals.lang || 'ko')
+  getApprovedPosts(domain, Astro.locals.lang || 'ko')
 ]);
 
-const post = fullPost || allPosts.find((p: any) => p.slug === slug || p.id === slug);
+import { findPostMetaInList, findPostMetaByIdHintFallback, getPostContent } from '../lib/api';
+
+let postMeta = findPostMetaInList(allPosts, slug);
+if (!postMeta) {
+  postMeta = await findPostMetaByIdHintFallback(slug, siteConfig?.id || '');
+}
+
+if (!postMeta) {
+  return Astro.redirect('/404');
+}
+
+const fullContent = await getPostContent(postMeta.id);
+const post = { ...postMeta, content: fullContent?.content || '', html_content: fullContent?.html_content || '' };
 
 if (!post) {
   console.log('404 for slug:', slug, 'allPosts length:', allPosts.length);
@@ -62,12 +72,13 @@ const isZeroItPost = post.html_content && post.html_content.includes('max-width:
 ---
 
 <Layout 
-  title={post.title} 
-  description={post.metadata?.description || post.title}
-  image={metaImage}
-  type="article"
-  authorName={profileName}
-  datePublished={post.created_at}
+	title={post.title}
+	description={post.content ? post.content.substring(0, 160).replace(/<[^>]*>?/gm, '') : ""}
+	image={metaImage}
+	type="article"
+	authorName={profileName}
+	datePublished={post.created_at}
+  siteConfig={siteConfig}
 >
   <div class="mx-auto max-w-3xl px-4 pt-6 pb-12 md:px-6 md:pt-16 md:pb-20">
     
