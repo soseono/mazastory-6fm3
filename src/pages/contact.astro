@@ -1,10 +1,12 @@
 ---
 export const prerender = false;
 import Layout from '../layouts/Layout.astro';
-import { getSiteConfig } from '../lib/api';
+import { getSiteConfig, getRequestDomain } from '../lib/api';
 
-const siteConfig = await getSiteConfig();
+const domain = getRequestDomain(Astro.request);
+const siteConfig = await getSiteConfig(domain);
 const blogName = siteConfig?.blog_name || "Maza Blog";
+const contactEmail = `contact@${domain || 'example.com'}`;
 ---
 <Layout title={`Contact ${blogName}`} description={`Contact ${blogName}`}>
   <main class="mx-auto max-w-4xl px-6 py-20 md:py-32 relative">
@@ -30,8 +32,8 @@ const blogName = siteConfig?.blog_name || "Maza Blog";
           </div>
           <div class="text-left">
             <p class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">Email Address</p>
-            <a href="mailto:contact@mazablog.com" class="text-xl md:text-2xl font-black text-slate-900 hover:text-indigo-600 transition-colors">
-              contact@mazablog.com
+            <a href={`mailto:${contactEmail}`} class="text-xl md:text-2xl font-black text-slate-900 hover:text-indigo-600 transition-colors">
+              {contactEmail}
             </a>
           </div>
         </div>
