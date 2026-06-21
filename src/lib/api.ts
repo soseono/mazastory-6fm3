@@ -62,10 +62,16 @@ export async function getApprovedPosts(domain?: string, locale?: string): Promis
     const { data: site } = await supabase.from('sites').select('id').eq('domain', targetDomain).limit(1).maybeSingle();
     if (!site) return [];
 
+    const nowIso = new Date().toISOString();
+
     const result = await supabase.from('posts')
       .select('id, title, thumbnail_url, created_at, publish_at, status, metadata, source_type')
       .eq('site_id', site.id)
-      .eq('status', 'published');
+      .eq('status', 'published')
+      .or(`publish_at.lte.${nowIso},and(publish_at.is.null,created_at.lte.${nowIso})`)
+      .order('publish_at', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .limit(60);
       
     data = result.data;
     error = result.error;
