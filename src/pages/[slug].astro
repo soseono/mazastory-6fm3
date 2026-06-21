@@ -3,7 +3,7 @@ export const prerender = false;
 import Layout from '../layouts/Layout.astro';
 import AdSlot from '../components/AdSlot.astro';
 import AnalyticsTracker from '../components/AnalyticsTracker.astro';
-import { getSiteConfig, getRequestDomain, getApprovedPosts } from '../lib/api';
+import { getSiteConfig, getRequestDomain, getApprovedPosts, getPostBySlug } from '../lib/api';
 import { buildKeywordMap, injectInternalLinks } from '../lib/internalLinks';
 import { splitHtmlForAd } from '../lib/adManager';
 
@@ -18,13 +18,14 @@ if (!slug) {
   return Astro.redirect('/404');
 }
 
-// 성능 최적화: 병렬 처리
-const [siteConfig, allPosts] = await Promise.all([
+// 성능 최적화: 병렬 처리 (리스트 + 단일 포스트 본문)
+const [siteConfig, allPosts, fullPost] = await Promise.all([
   getSiteConfig(domain),
-  getApprovedPosts(domain, Astro.locals.lang || 'ko')
+  getApprovedPosts(domain, Astro.locals.lang || 'ko'),
+  getPostBySlug(slug, domain, Astro.locals.lang || 'ko')
 ]);
 
-const post = allPosts.find((p: any) => p.slug === slug || p.id === slug);
+const post = fullPost || allPosts.find((p: any) => p.slug === slug || p.id === slug);
 
 if (!post) {
   console.log('404 for slug:', slug, 'allPosts length:', allPosts.length);
